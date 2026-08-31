@@ -1,5 +1,5 @@
 {
-  "$schema": "https://railway.com/railway.schema.json",
+  "$comment": "railway.json / railway.toml Config-as-Code is deprecated on this Railway platform version (confirmed 2026-08-31 — serviceInstanceUpdate rejects railwayConfigFile with 'Config as Code (railway.json / railway.toml) is deprecated. Use Infrastructure as Code (.railway/railway.ts) instead'). This file is now DEAD and ignored by Railway. Build/deploy settings (preDeployCommand: npx prisma migrate deploy, healthcheckPath: /api/health, builder: RAILPACK) are set directly on the service instance via the serviceInstanceUpdate GraphQL API instead. Kept here only as documentation of intent until migrated to .railway/railway.ts.",
   "build": {
     "builder": "RAILPACK"
   },
