@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model IncomingEvent {
+  id                String   @id @default(cuid())
+  source            String // "instagram_dm" | "instagram_comment"
+  externalId        String   @unique // message id / comment id від Meta
+  senderId          String // IG user id відправника
+  senderUsername    String?
+  text              String
+  status            String   @default("pending") // pending | sent | edited_sent
+  proposedReply     String?
+  finalReply        String?
+  telegramMessageId String? // для edit кнопок в Telegram
+  awaitingEditReply Boolean  @default(false) // true, поки чекаємо текст правки від адміна в Telegram
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([status])
+  @@index([awaitingEditReply])
+}
