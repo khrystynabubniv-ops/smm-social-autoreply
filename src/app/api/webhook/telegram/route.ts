@@ -8,6 +8,8 @@ import {
   sendMessage,
 } from "@/lib/telegram";
 import { getEnv } from "@/lib/env";
+import { escapeHtml } from "@/lib/escapeHtml";
+import { isValidTelegramSecret } from "@/lib/telegramSecret";
 
 type TelegramUpdate = {
   message?: {
@@ -24,7 +26,25 @@ type TelegramUpdate = {
 };
 
 export async function POST(request: NextRequest) {
+  // Telegram has no HMAC-over-body mechanism; the secret_token header (set via
+  // setWebhook) is the only proof a request actually came from Telegram.
+  if (
+    !isValidTelegramSecret(
+      request.headers.get("x-telegram-bot-api-secret-token"),
+    )
+  ) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
   const update = (await request.json()) as TelegramUpdate;
+  const { TELEGRAM_CHAT_ID } = getEnv();
+
+  // Defense in depth: only ever act on updates from the configured admin chat.
+  const chatId =
+    update.callback_query?.message?.chat.id ?? update.message?.chat.id;
+  if (String(chatId) !== TELEGRAM_CHAT_ID) {
+    return new NextResponse("OK", { status: 200 });
+  }
 
   try {
     if (update.callback_query) {
@@ -157,11 +177,15 @@ async function handleTextMessage(
   const { TELEGRAM_CHAT_ID } = getEnv();
   await sendMessage(
     TELEGRAM_CHAT_ID,
-    `${buildOriginalText(updated)}\n\nВаш варіант:\n"${draft}"`,
+    `${buildOriginalText(updated)}\n\nВаш варіант:\n"${escapeHtml(draft)}"`,
     { inlineKeyboard: buildSendEditedKeyboard(updated.id) },
   );
 }
 
+// event.text / senderUsername / senderId come straight from the Meta webhook
+// payload (an arbitrary public IG comment or DM) and messages are sent with
+// parse_mode: "HTML" — must be escaped before interpolation to avoid HTML/link
+// injection into the operator's Telegram chat.
 function buildOriginalText(event: {
   source: string;
   senderUsername: string | null;
@@ -170,7 +194,7 @@ function buildOriginalText(event: {
 }): string {
   const kind = event.source === "instagram_dm" ? "DM" : "коментар";
   const username = event.senderUsername
-    ? `@${event.senderUsername}`
-    : event.senderId;
-  return `💬 ${kind} від ${username}\n"${event.text}"`;
+    ? `@${escapeHtml(event.senderUsername)}`
+    : escapeHtml(event.senderId);
+  return `💬 ${kind} від ${username}\n"${escapeHtml(event.text)}"`;
 }

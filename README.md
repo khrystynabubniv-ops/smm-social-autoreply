@@ -1,5 +1,11 @@
 # smm-social-autoreply
 
+**Production:** https://smm-social-autoreply-production.up.railway.app
+
+**Railway:** https://railway.com/project/e7a237ef-4c5a-4214-8586-260711e966b3/service/57fa1880-d6f7-40e3-914e-4148a2726a1c?environmentId=3fe93c72-876d-4705-9a3a-67ff58fc89f5
+
+**Railway workspace:** khrystynabubniv-ops's Projects
+
 MVP-прототип: приймає вхідні Instagram DM та коментарі через Meta webhook,
 надсилає в Telegram-чат картку з пропонованою відповіддю та кнопками
 підтвердження (`✅ Надіслати` / `✏️ Редагувати`), і за підтвердженням
@@ -31,14 +37,15 @@ Health check: `curl http://localhost:3000/api/health`
 
 ## Env variables
 
-| Variable                 | Опис                                                                                                      |
-| ------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`           | Postgres connection string                                                                                |
-| `META_APP_SECRET`        | Meta App Dashboard → Settings → Basic → App Secret. Використовується для перевірки `X-Hub-Signature-256`. |
-| `META_VERIFY_TOKEN`      | Довільний рядок, який ти сам придумуєш і вписуєш у Meta App Dashboard → Webhooks.                         |
-| `META_PAGE_ACCESS_TOKEN` | Page access token з правами `instagram_manage_comments` (і згодом `instagram_manage_messages`).           |
-| `TELEGRAM_BOT_TOKEN`     | Токен бота від `@BotFather`.                                                                              |
-| `TELEGRAM_CHAT_ID`       | Chat id, куди слати сповіщення (наприклад, з `@userinfobot`).                                             |
+| Variable                  | Опис                                                                                                      |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`            | Postgres connection string                                                                                |
+| `META_APP_SECRET`         | Meta App Dashboard → Settings → Basic → App Secret. Використовується для перевірки `X-Hub-Signature-256`. |
+| `META_VERIFY_TOKEN`       | Довільний рядок, який ти сам придумуєш і вписуєш у Meta App Dashboard → Webhooks.                         |
+| `META_PAGE_ACCESS_TOKEN`  | Page access token з правами `instagram_manage_comments` (і згодом `instagram_manage_messages`).           |
+| `TELEGRAM_BOT_TOKEN`      | Токен бота від `@BotFather`.                                                                              |
+| `TELEGRAM_CHAT_ID`        | Chat id, куди слати сповіщення (наприклад, з `@userinfobot`).                                             |
+| `TELEGRAM_WEBHOOK_SECRET` | Довільний секрет (`openssl rand -hex 32`), реєструється як `secret_token` у `setWebhook`.                 |
 
 ## Флоу
 
@@ -56,19 +63,20 @@ Health check: `curl http://localhost:3000/api/health`
 
 ## Налаштування Meta webhook
 
-Після деплою на Railway:
-
-1. Публічний URL сервісу: `https://<railway-domain>` (буде виведено після
-   деплою).
+1. Публічний URL сервісу: `https://smm-social-autoreply-production.up.railway.app`
 2. Meta App Dashboard → Webhooks → Instagram → **Callback URL**:
-   `https://<railway-domain>/api/webhook/meta`
+   `https://smm-social-autoreply-production.up.railway.app/api/webhook/meta`
 3. **Verify Token**: значення з `META_VERIFY_TOKEN`.
 4. Підписатись на поля `messages` (DM) та `comments`.
 
 ## Налаштування Telegram webhook
 
+Обов'язково передавай `secret_token` (значення `TELEGRAM_WEBHOOK_SECRET`) — без нього
+вебхук приймає запити лише з валідним заголовком і поверне 401 будь-кому іншому:
+
 ```bash
-curl -F "url=https://<railway-domain>/api/webhook/telegram" \
+curl -F "url=https://smm-social-autoreply-production.up.railway.app/api/webhook/telegram" \
+  -F "secret_token=<TELEGRAM_WEBHOOK_SECRET>" \
   "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook"
 ```
 

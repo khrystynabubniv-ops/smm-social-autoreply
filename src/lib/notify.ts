@@ -1,4 +1,5 @@
 import { getEnv } from "@/lib/env";
+import { escapeHtml } from "@/lib/escapeHtml";
 import { prisma } from "@/lib/prisma";
 import { buildConfirmationKeyboard, sendMessage } from "@/lib/telegram";
 import type { IncomingEvent } from "@prisma/client";
@@ -7,13 +8,6 @@ const SOURCE_LABEL: Record<string, string> = {
   instagram_dm: "DM",
   instagram_comment: "коментар",
 };
-
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
 
 function buildNotificationText(event: IncomingEvent): string {
   const kind = SOURCE_LABEL[event.source] ?? event.source;

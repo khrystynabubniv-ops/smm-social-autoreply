@@ -9,6 +9,9 @@ const envSchema = z.object({
     .min(1, "META_PAGE_ACCESS_TOKEN is required"),
   TELEGRAM_BOT_TOKEN: z.string().min(1, "TELEGRAM_BOT_TOKEN is required"),
   TELEGRAM_CHAT_ID: z.string().min(1, "TELEGRAM_CHAT_ID is required"),
+  TELEGRAM_WEBHOOK_SECRET: z
+    .string()
+    .min(1, "TELEGRAM_WEBHOOK_SECRET is required"),
 });
 
 export type Env = z.infer<typeof envSchema>;
