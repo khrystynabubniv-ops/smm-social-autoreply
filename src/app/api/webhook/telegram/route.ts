@@ -101,7 +101,19 @@ async function handleSend(
 
   const replyText = event.proposedReply ?? "";
 
-  await sendReplyToMeta(event, replyText);
+  try {
+    await sendReplyToMeta(event, replyText);
+  } catch (err) {
+    console.error(
+      `[webhook:telegram] failed to send reply for event ${eventId}`,
+      err,
+    );
+    await answerCallbackQuery(
+      callbackQuery.id,
+      "❌ Помилка надсилання в Meta — див. логи",
+    );
+    return;
+  }
 
   const updated = await prisma.incomingEvent.update({
     where: { id: eventId },
