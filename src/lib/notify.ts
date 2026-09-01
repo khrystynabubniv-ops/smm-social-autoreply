@@ -9,7 +9,7 @@ import {
 } from "@/lib/telegram";
 import type { IncomingEvent, Template } from "@prisma/client";
 
-function keyboardForTier(event: IncomingEvent) {
+export function keyboardForTier(event: IncomingEvent) {
   if (event.tier === "C") return buildTierCKeyboard(event.id);
   if (event.tier === "escalate" || !event.tier)
     return buildEscalateKeyboard(event.id);
