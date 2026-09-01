@@ -37,15 +37,15 @@ Health check: `curl http://localhost:3000/api/health`
 
 ## Env variables
 
-| Variable                  | Опис                                                                                                      |
-| ------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`            | Postgres connection string                                                                                |
-| `META_APP_SECRET`         | Meta App Dashboard → Settings → Basic → App Secret. Використовується для перевірки `X-Hub-Signature-256`. |
-| `META_VERIFY_TOKEN`       | Довільний рядок, який ти сам придумуєш і вписуєш у Meta App Dashboard → Webhooks.                         |
-| `META_PAGE_ACCESS_TOKEN`  | Page access token з правами `instagram_manage_comments` (і згодом `instagram_manage_messages`).           |
-| `TELEGRAM_BOT_TOKEN`      | Токен бота від `@BotFather`.                                                                              |
-| `TELEGRAM_CHAT_ID`        | Chat id, куди слати сповіщення (наприклад, з `@userinfobot`).                                             |
-| `TELEGRAM_WEBHOOK_SECRET` | Довільний секрет (`openssl rand -hex 32`), реєструється як `secret_token` у `setWebhook`.                 |
+| Variable                  | Опис                                                                                                                                                                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`            | Postgres connection string                                                                                                                                                                                                                   |
+| `META_APP_SECRET`         | **Instagram app secret** з App Dashboard → Products → Instagram → API setup with Instagram login (окремий App ID/secret, не головного застосунку). Перевірка `X-Hub-Signature-256`.                                                          |
+| `META_VERIFY_TOKEN`       | Довільний рядок, вписуєш у Instagram → API setup with Instagram login → Configure webhooks → Verify Token.                                                                                                                                   |
+| `META_PAGE_ACCESS_TOKEN`  | Instagram User Access Token (`IGAA...`) з кроку "2. Generate access tokens" на тому ж екрані. Дозволи `instagram_business_basic` + `instagram_business_manage_comments`. Виклики йдуть через `graph.instagram.com`, не `graph.facebook.com`. |
+| `TELEGRAM_BOT_TOKEN`      | Токен бота від `@BotFather`.                                                                                                                                                                                                                 |
+| `TELEGRAM_CHAT_ID`        | Chat id, куди слати сповіщення (наприклад, з `@userinfobot`).                                                                                                                                                                                |
+| `TELEGRAM_WEBHOOK_SECRET` | Довільний секрет (`openssl rand -hex 32`), реєструється як `secret_token` у `setWebhook`.                                                                                                                                                    |
 
 ## Флоу
 
@@ -64,7 +64,8 @@ Health check: `curl http://localhost:3000/api/health`
 ## Налаштування Meta webhook
 
 1. Публічний URL сервісу: `https://smm-social-autoreply-production.up.railway.app`
-2. Meta App Dashboard → Webhooks → Instagram → **Callback URL**:
+2. App Dashboard → Products → Instagram → **API setup with Instagram login** →
+   "3. Configure webhooks" → **Callback URL**:
    `https://smm-social-autoreply-production.up.railway.app/api/webhook/meta`
 3. **Verify Token**: значення з `META_VERIFY_TOKEN`.
 4. Підписатись на поля `messages` (DM) та `comments`.

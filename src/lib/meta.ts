@@ -1,15 +1,20 @@
 import { getEnv } from "@/lib/env";
 import type { IncomingEvent } from "@prisma/client";
 
-const GRAPH_API_BASE = "https://graph.facebook.com/v21.0";
+// This app uses "Instagram API with Instagram Login" (a standalone Instagram
+// product, no Facebook Page in the middle) — tokens are IGAA-prefixed
+// Instagram User Access Tokens, and calls go through graph.instagram.com,
+// NOT graph.facebook.com (which is for the classic Page-linked Instagram
+// Graph API and rejects these tokens).
+const GRAPH_API_BASE = "https://graph.instagram.com/v21.0";
 
 /**
  * Sends the final reply back to Meta.
  *
  * - instagram_comment: real call to the Graph API `/{comment-id}/replies` endpoint,
- *   since `instagram_manage_comments` is already an approved permission.
- * - instagram_dm: stub only (console.log) until `instagram_manage_messages` is
- *   approved for this app — replace the branch body with a real
+ *   since `instagram_business_manage_comments` is already an approved permission.
+ * - instagram_dm: stub only (console.log) until `instagram_business_manage_messages`
+ *   is approved for this app — replace the branch body with a real
  *   `/me/messages` call once that happens.
  */
 export async function sendReplyToMeta(
