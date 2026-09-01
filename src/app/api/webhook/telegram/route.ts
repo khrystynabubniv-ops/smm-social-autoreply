@@ -6,7 +6,7 @@ import {
   buildSendEditedKeyboard,
   editMessageText,
 } from "@/lib/telegram";
-import { buildCardText } from "@/lib/eventCard";
+import { buildCardText, getEventTemplate } from "@/lib/eventCard";
 import { getEnv } from "@/lib/env";
 import { isValidTelegramSecret } from "@/lib/telegramSecret";
 import type { IncomingEvent } from "@prisma/client";
@@ -80,6 +80,9 @@ async function handleCallbackQuery(
     case "send_edited":
       await handleSend(callbackQuery, eventId, { edited: true });
       break;
+    case "mark_processed":
+      await handleMarkProcessed(callbackQuery, eventId);
+      break;
     default:
       await answerCallbackQuery(callbackQuery.id);
   }
@@ -93,10 +96,11 @@ async function updateCard(
   options?: Parameters<typeof editMessageText>[3],
 ) {
   if (!event.telegramMessageId) return;
+  const template = await getEventTemplate(event);
   await editMessageText(
     chatId,
     event.telegramMessageId,
-    buildCardText(event, extra),
+    buildCardText(event, template, extra),
     options,
   );
 }
@@ -181,6 +185,36 @@ async function handleEditRequest(
       updated,
       String(callbackQuery.message.chat.id),
       "✏️ Напишіть новий варіант відповіді наступним повідомленням у цей чат.",
+      { inlineKeyboard: [] },
+    );
+  }
+}
+
+/** Tier C — dismiss without sending anything to Meta; reference only. */
+async function handleMarkProcessed(
+  callbackQuery: NonNullable<TelegramUpdate["callback_query"]>,
+  eventId: string,
+) {
+  const event = await prisma.incomingEvent.findUnique({
+    where: { id: eventId },
+  });
+  if (!event) {
+    await answerCallbackQuery(callbackQuery.id, "Подію не знайдено");
+    return;
+  }
+
+  const updated = await prisma.incomingEvent.update({
+    where: { id: eventId },
+    data: { status: "processed" },
+  });
+
+  await answerCallbackQuery(callbackQuery.id, "Опрацьовано ✅");
+
+  if (updated.telegramMessageId && callbackQuery.message) {
+    await updateCard(
+      updated,
+      String(callbackQuery.message.chat.id),
+      "✅ Позначено як опрацьоване",
       { inlineKeyboard: [] },
     );
   }

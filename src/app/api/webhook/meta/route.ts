@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getEnv } from "@/lib/env";
 import { isValidMetaSignature } from "@/lib/metaSignature";
 import { parseMetaPayload, type MetaWebhookPayload } from "@/lib/metaPayload";
-import { proposeReply } from "@/lib/classify";
+import { classifyMessage } from "@/lib/classify";
 import { getInstagramUsername } from "@/lib/meta";
 import { prisma } from "@/lib/prisma";
 import { notifyTelegram } from "@/lib/notify";
@@ -92,11 +92,23 @@ async function processPayload(rawBody: string): Promise<void> {
           senderId: parsed.senderId,
           senderUsername,
           text: parsed.text,
-          proposedReply: proposeReply(parsed),
+          senderConversationKey: `${parsed.source}:${parsed.senderId}`,
         },
       });
 
-      await notifyTelegram(created);
+      const classification = await classifyMessage(created);
+
+      const updated = await prisma.incomingEvent.update({
+        where: { id: created.id },
+        data: {
+          categoryId: classification.categoryId,
+          tier: classification.tier,
+          confidence: classification.confidence,
+          proposedReply: classification.proposedReply,
+        },
+      });
+
+      await notifyTelegram(updated, classification.template);
     } catch (err: unknown) {
       // Unique constraint violation on externalId = duplicate delivery from Meta, ignore.
       if (isUniqueConstraintError(err)) {

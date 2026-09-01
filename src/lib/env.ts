@@ -13,6 +13,8 @@ const envSchema = z.object({
   TELEGRAM_WEBHOOK_SECRET: z
     .string()
     .min(1, "TELEGRAM_WEBHOOK_SECRET is required"),
+  LITELLM_BASE_URL: z.string().url(),
+  LITELLM_API_KEY: z.string().min(1, "LITELLM_API_KEY is required"),
 });
 
 export type Env = z.infer<typeof envSchema>;

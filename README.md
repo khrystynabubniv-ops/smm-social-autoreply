@@ -11,15 +11,16 @@ MVP-прототип: приймає вхідні Instagram DM та комент
 підтвердження (`✅ Надіслати` / `✏️ Редагувати`), і за підтвердженням
 відправляє відповідь назад у Meta.
 
-На цьому етапі **без AI-класифікації** — `proposedReply` це заглушка
-(`[тут буде пропонована відповідь]`), щоб перевірити флоу end-to-end і
-записати скрінкаст для Meta App Review. AI-класифікацію додамо окремим
-кроком пізніше.
+AI (через company LiteLLM proxy) **лише класифікує** повідомлення за
+категоріями FAQ SMM — текст відповіді завжди береться дослівно з бази
+шаблонів (`Template`), LLM ніколи не генерує й не переформульовує сам текст.
+Див. `src/lib/classify.ts` і `src/data/templates.ts`.
 
 ## Стек
 
 - Next.js (App Router) + TypeScript
 - PostgreSQL + Prisma
+- LiteLLM proxy (`openai` SDK, OpenAI-сумісний API) — лише для класифікації
 - Прямі HTTP-виклики до Telegram Bot API (без сторонніх бібліотек)
 - Railway (деплой, окремий сервіс)
 
@@ -47,18 +48,35 @@ Health check: `curl http://localhost:3000/api/health`
 | `TELEGRAM_BOT_TOKEN`      | Токен бота від `@BotFather`.                                                                                                                                                                                                                 |
 | `TELEGRAM_CHAT_ID`        | Chat id, куди слати сповіщення (наприклад, з `@userinfobot`).                                                                                                                                                                                |
 | `TELEGRAM_WEBHOOK_SECRET` | Довільний секрет (`openssl rand -hex 32`), реєструється як `secret_token` у `setWebhook`.                                                                                                                                                    |
+| `LITELLM_BASE_URL`        | `https://litellm.unicore-tools.io` — company proxy, ніколи не звертаємось до Anthropic/OpenAI напряму.                                                                                                                                       |
+| `LITELLM_API_KEY`         | Virtual key, створюється на litellm.unicore-tools.io/ui → Virtual Keys → Create New Key, назва `smm-social-autoreply`.                                                                                                                       |
 
 ## Флоу
 
 1. Meta шле подію (DM або коментар) на `POST /api/webhook/meta`.
 2. Підпис перевіряється (`X-Hub-Signature-256` + `META_APP_SECRET`), подія
-   парситься, зберігається в `IncomingEvent` (дедуплікація за `externalId`),
-   і в Telegram-чат летить картка з пропонованою відповіддю.
-3. `✅ Надіслати` → відповідь реально йде в Meta (коментарі через
+   парситься, зберігається в `IncomingEvent` (дедуплікація за `externalId`,
+   фільтр власних відповідей акаунта через `META_IG_ACCOUNT_ID`).
+3. `classifyMessage()` — LLM (LiteLLM) визначає **тільки категорію** з FAQ
+   (`categoryId`, `confidence`, чи звинувачення спрямоване на конкретну
+   людину). Сам текст відповіді береться дослівно з `Template.textVariants`
+   (для 5.x — випадковий з набору взаємозамінних варіантів). Repeat-detection:
+   якщо тому самому відправнику вже надсилали Tier B/C відповідь на ту саму
+   категорію за 24 год — форсується `tier = "escalate"` (не ведемось на
+   повторну провокацію).
+4. Картка в Telegram — формат залежить від tier:
+   - **Tier A/B**: `✅ Надіслати` / `✏️ Редагувати`, показує категорію і
+     пропоновану відповідь (+ `⚠️ Перевір дані`, якщо `hasPlaceholder`).
+   - **escalate** (низька впевненість / нема категорії / повтор): без
+     готової відповіді, тільки `✏️ Написати відповідь`.
+   - **Tier C** (токсичні/критичні): інший формат, приклади відповідей з FAQ
+     для довідки, тільки `✅ Позначити як опрацьовано` — жодної автоматичної
+     відповіді і жодного "Надіслати".
+5. `✅ Надіслати` → відповідь реально йде в Meta (коментарі через
    `instagram_business_manage_comments`, DM через `instagram_business_manage_messages`),
    статус → `sent`.
-4. `✏️ Редагувати` → бот просить новий текст (`force_reply`), наступне
-   повідомлення в чаті береться як чернетка і показується знову з кнопкою
+6. `✏️ Редагувати` / `✏️ Написати відповідь` → наступне повідомлення в чаті
+   береться як текст відповіді, картка оновлюється на місці з кнопкою
    `✅ Надіслати цей варіант` (`send_edited`), яка зберігає фінальний текст і
    ставить статус → `edited_sent`.
 
@@ -82,8 +100,17 @@ curl -F "url=https://smm-social-autoreply-production.up.railway.app/api/webhook/
   "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook"
 ```
 
+## Оновлення бази шаблонів
+
+Тексти живуть у `src/data/templates.ts` (дослівна копія Notion "FAQ SMM") і
+заливаються в таблицю `Template` через `prisma/seed.ts` — ідемпотентно,
+запускається автоматично на кожному деплої (`preDeployCommand`:
+`prisma migrate deploy && prisma db seed`). Щоб оновити тексти — онови
+`templates.ts` і задеплой, вручну нічого запускати не треба.
+
 ## Що НЕ реалізовано на цьому етапі
 
-- AI-класифікація відповіді (OpenRouter) — заглушка
-- Адмінка для шаблонів
+- Автоматична відправка без підтвердження людини (навіть для Tier A з
+  високим confidence) — Фаза 2, зараз усе йде через Telegram-кнопки
+- Адмінка для шаблонів (редагування лише через код + деплой)
 - Multi-user логіка / locking — один Telegram chat, без auth

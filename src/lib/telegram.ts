@@ -112,3 +112,28 @@ export function buildSendEditedKeyboard(
     ],
   ];
 }
+
+/** Tier "escalate" — no auto-picked template exists, only a from-scratch reply. */
+export function buildEscalateKeyboard(
+  eventId: string,
+): InlineKeyboardButton[][] {
+  return [
+    [{ text: "✏️ Написати відповідь", callback_data: `edit:${eventId}` }],
+  ];
+}
+
+/**
+ * Tier C (toxic/critical) — reference only, deliberately no "send" affordance.
+ * FAQ example replies are shown inline in the card text itself (see
+ * eventCard.ts), so the only action needed here is dismissing the card.
+ */
+export function buildTierCKeyboard(eventId: string): InlineKeyboardButton[][] {
+  return [
+    [
+      {
+        text: "✅ Позначити як опрацьовано",
+        callback_data: `mark_processed:${eventId}`,
+      },
+    ],
+  ];
+}

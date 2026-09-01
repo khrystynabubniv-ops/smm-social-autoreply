@@ -4,7 +4,7 @@
     "builder": "RAILPACK"
   },
   "deploy": {
-    "preDeployCommand": "npx prisma migrate deploy",
+    "preDeployCommand": "npx prisma migrate deploy && npx prisma db seed",
     "healthcheckPath": "/api/health",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
