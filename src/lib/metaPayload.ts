@@ -11,16 +11,29 @@ export type ParsedMetaEvent = {
 };
 
 // --- Minimal shapes for the parts of Meta's webhook payload we read. ---
-// This app uses "Instagram API with Instagram Login" (a standalone Instagram
-// product), which delivers BOTH DMs and comments through the same
-// entry[].changes[] array — distinguished only by `field` — unlike the
-// classic Messenger Platform's separate entry[].messaging[] array. Verified
-// against a live payload from Meta's own webhook "Test" button:
+// This app uses "Instagram API with Instagram Login". Real DM deliveries were
+// confirmed (via raw payload logging) to use the classic Messenger Platform
+// shape — entry[].messaging[] — e.g.:
+//   {"object":"instagram","entry":[{"id":"...","time":...,
+//     "messaging":[{"sender":{"id":"..."},"recipient":{"id":"..."},
+//                   "timestamp":...,"message":{"mid":"...","text":"..."}}]}]}
+// but Meta's own dashboard webhook "Test" button simulates a DM using the
+// *other* documented shape instead — entry[].changes[] with
+// field: "messages" — e.g.:
 //   {"entry":[{"id":"0","time":...,"changes":[{"field":"messages",
 //     "value":{"sender":{"id":"..."},"recipient":{"id":"..."},
 //              "timestamp":"...","message":{"mid":"...","text":"..."}}}]}],
 //    "object":"instagram"}
+// So we accept both. Comments only ever showed up via entry[].changes[] with
+// field: "comments".
 // Full reference: https://developers.facebook.com/docs/instagram-platform/webhooks
+
+type MetaMessagingEntry = {
+  sender?: { id?: string };
+  recipient?: { id?: string };
+  timestamp?: number;
+  message?: { mid?: string; text?: string; is_echo?: boolean };
+};
 
 type MetaMessageChangeValue = {
   sender?: { id?: string };
@@ -43,6 +56,7 @@ type MetaChange = {
 type MetaEntry = {
   id?: string;
   time?: number;
+  messaging?: MetaMessagingEntry[];
   changes?: MetaChange[];
 };
 
@@ -50,6 +64,19 @@ export type MetaWebhookPayload = {
   object?: string;
   entry?: MetaEntry[];
 };
+
+function pushDm(
+  events: ParsedMetaEvent[],
+  message: { mid?: string; text?: string; is_echo?: boolean } | undefined,
+  senderId: string | undefined,
+): void {
+  if (message?.is_echo) return;
+  const mid = message?.mid;
+  const text = message?.text;
+  if (!mid || !senderId || !text) return;
+
+  events.push({ source: "instagram_dm", externalId: mid, senderId, text });
+}
 
 /**
  * Flattens a raw Meta webhook payload into our normalized event list.
@@ -61,21 +88,17 @@ export function parseMetaPayload(
   const events: ParsedMetaEvent[] = [];
 
   for (const entry of payload.entry ?? []) {
+    // Real DM deliveries: classic Messenger Platform shape.
+    for (const messaging of entry.messaging ?? []) {
+      pushDm(events, messaging.message, messaging.sender?.id);
+    }
+
     for (const change of entry.changes ?? []) {
       if (change.field === "messages") {
+        // Meta's dashboard "Test" button shape (not seen in real deliveries
+        // yet, but documented — accept it defensively).
         const value = change.value as MetaMessageChangeValue;
-        if (value.message?.is_echo) continue;
-        const mid = value.message?.mid;
-        const senderId = value.sender?.id;
-        const text = value.message?.text;
-        if (!mid || !senderId || !text) continue;
-
-        events.push({
-          source: "instagram_dm",
-          externalId: mid,
-          senderId,
-          text,
-        });
+        pushDm(events, value.message, value.sender?.id);
       } else if (change.field === "comments") {
         const value = change.value as MetaCommentChangeValue;
         const commentId = value.id;
