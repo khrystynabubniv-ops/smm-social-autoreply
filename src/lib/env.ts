@@ -7,6 +7,7 @@ const envSchema = z.object({
   META_PAGE_ACCESS_TOKEN: z
     .string()
     .min(1, "META_PAGE_ACCESS_TOKEN is required"),
+  META_IG_ACCOUNT_ID: z.string().min(1, "META_IG_ACCOUNT_ID is required"),
   TELEGRAM_BOT_TOKEN: z.string().min(1, "TELEGRAM_BOT_TOKEN is required"),
   TELEGRAM_CHAT_ID: z.string().min(1, "TELEGRAM_CHAT_ID is required"),
   TELEGRAM_WEBHOOK_SECRET: z

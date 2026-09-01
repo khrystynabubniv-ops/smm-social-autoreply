@@ -50,15 +50,30 @@ async function processPayload(rawBody: string): Promise<void> {
     return;
   }
 
-  const events = parseMetaPayload(payload);
+  const rawEvents = parseMetaPayload(payload);
 
-  if (events.length === 0) {
+  if (rawEvents.length === 0) {
     // Nothing matched our parser's expected shape — log the raw payload so we
     // can see exactly what this Instagram product actually sends and fix the
     // parser, instead of silently dropping it.
     console.log("[webhook:meta] payload matched 0 events, raw body:", rawBody);
     return;
   }
+
+  const { META_IG_ACCOUNT_ID } = getEnv();
+  const events = rawEvents.filter((event) => {
+    // Comments have no `is_echo` flag like DMs do — when we reply to a
+    // comment, that reply is itself a new comment authored by our own
+    // account, which fires another webhook event. Without this filter we'd
+    // notify ourselves about our own replies forever.
+    if (event.senderId === META_IG_ACCOUNT_ID) {
+      console.log(
+        `[webhook:meta] ignoring self-authored event: ${event.externalId}`,
+      );
+      return false;
+    }
+    return true;
+  });
 
   for (const parsed of events) {
     try {
