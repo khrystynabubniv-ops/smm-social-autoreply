@@ -11,13 +11,21 @@ export type ParsedMetaEvent = {
 };
 
 // --- Minimal shapes for the parts of Meta's webhook payload we read. ---
-// Full reference: https://developers.facebook.com/docs/messenger-platform/webhooks
-// and https://developers.facebook.com/docs/instagram-platform/webhooks
+// This app uses "Instagram API with Instagram Login" (a standalone Instagram
+// product), which delivers BOTH DMs and comments through the same
+// entry[].changes[] array — distinguished only by `field` — unlike the
+// classic Messenger Platform's separate entry[].messaging[] array. Verified
+// against a live payload from Meta's own webhook "Test" button:
+//   {"entry":[{"id":"0","time":...,"changes":[{"field":"messages",
+//     "value":{"sender":{"id":"..."},"recipient":{"id":"..."},
+//              "timestamp":"...","message":{"mid":"...","text":"..."}}}]}],
+//    "object":"instagram"}
+// Full reference: https://developers.facebook.com/docs/instagram-platform/webhooks
 
-type MetaMessagingEntry = {
+type MetaMessageChangeValue = {
   sender?: { id?: string };
   recipient?: { id?: string };
-  timestamp?: number;
+  timestamp?: string;
   message?: { mid?: string; text?: string; is_echo?: boolean };
 };
 
@@ -28,14 +36,13 @@ type MetaCommentChangeValue = {
 };
 
 type MetaChange = {
-  field?: string;
-  value?: MetaCommentChangeValue;
+  field?: string; // "messages" | "comments" | ...
+  value?: MetaMessageChangeValue | MetaCommentChangeValue;
 };
 
 type MetaEntry = {
   id?: string;
   time?: number;
-  messaging?: MetaMessagingEntry[];
   changes?: MetaChange[];
 };
 
@@ -54,35 +61,36 @@ export function parseMetaPayload(
   const events: ParsedMetaEvent[] = [];
 
   for (const entry of payload.entry ?? []) {
-    for (const messaging of entry.messaging ?? []) {
-      if (messaging.message?.is_echo) continue;
-      const mid = messaging.message?.mid;
-      const senderId = messaging.sender?.id;
-      const text = messaging.message?.text;
-      if (!mid || !senderId || !text) continue;
-
-      events.push({
-        source: "instagram_dm",
-        externalId: mid,
-        senderId,
-        text,
-      });
-    }
-
     for (const change of entry.changes ?? []) {
-      if (change.field !== "comments") continue;
-      const commentId = change.value?.id;
-      const text = change.value?.text;
-      const senderId = change.value?.from?.id;
-      if (!commentId || !text || !senderId) continue;
+      if (change.field === "messages") {
+        const value = change.value as MetaMessageChangeValue;
+        if (value.message?.is_echo) continue;
+        const mid = value.message?.mid;
+        const senderId = value.sender?.id;
+        const text = value.message?.text;
+        if (!mid || !senderId || !text) continue;
 
-      events.push({
-        source: "instagram_comment",
-        externalId: commentId,
-        senderId,
-        senderUsername: change.value?.from?.username,
-        text,
-      });
+        events.push({
+          source: "instagram_dm",
+          externalId: mid,
+          senderId,
+          text,
+        });
+      } else if (change.field === "comments") {
+        const value = change.value as MetaCommentChangeValue;
+        const commentId = value.id;
+        const text = value.text;
+        const senderId = value.from?.id;
+        if (!commentId || !text || !senderId) continue;
+
+        events.push({
+          source: "instagram_comment",
+          externalId: commentId,
+          senderId,
+          senderUsername: value.from?.username,
+          text,
+        });
+      }
     }
   }
 
