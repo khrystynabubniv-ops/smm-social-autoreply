@@ -118,7 +118,11 @@ function buildTierCText(
     `Категорія: ${escapeHtml(event.categoryId ?? "не визначено")}`,
   ];
 
-  if (template && template.textVariants.length > 0) {
+  if (event.proposedReply) {
+    // Operator wrote a real reply via "✏️ Написати відповідь" — show it
+    // instead of the reference list once there's an actual answer to send.
+    lines.push("", "Відповідь:", `"${escapeHtml(event.proposedReply)}"`);
+  } else if (template && template.textVariants.length > 0) {
     lines.push("", "Можливі приклади відповідей з FAQ (для довідки):");
     template.textVariants.forEach((variant, i) => {
       lines.push(`${i + 1}. "${escapeHtml(variant)}"`);

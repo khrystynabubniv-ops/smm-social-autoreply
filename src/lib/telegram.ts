@@ -123,12 +123,15 @@ export function buildEscalateKeyboard(
 }
 
 /**
- * Tier C (toxic/critical) — reference only, deliberately no "send" affordance.
- * FAQ example replies are shown inline in the card text itself (see
- * eventCard.ts), so the only action needed here is dismissing the card.
+ * Tier C (toxic/critical) — never an auto-picked reply, but per the FAQ's own
+ * playbook some of these DO warrant a real answer ("брехня про нас/наші
+ * процеси — відповідаємо"), just always hand-written and reviewed. Reuses
+ * the generic edit -> send_edited flow; "Позначити як опрацьовано" stays for
+ * the ones that should just be dismissed (pure insults, baseless negativity).
  */
 export function buildTierCKeyboard(eventId: string): InlineKeyboardButton[][] {
   return [
+    [{ text: "✏️ Написати відповідь", callback_data: `edit:${eventId}` }],
     [
       {
         text: "✅ Позначити як опрацьовано",
