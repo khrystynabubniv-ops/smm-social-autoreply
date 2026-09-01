@@ -39,6 +39,36 @@ export async function sendReplyToMeta(
   );
 }
 
+/**
+ * Resolves an Instagram username from the numeric IGSID (Instagram-scoped
+ * user id) Meta gives us in DM webhook payloads. Unlike comments, DM
+ * webhooks don't include the sender's username directly — only their id —
+ * so we look it up separately for display in Telegram. Best-effort: returns
+ * undefined (falling back to showing the raw id) if the lookup fails.
+ */
+export async function getInstagramUsername(
+  igsid: string,
+): Promise<string | undefined> {
+  const { META_PAGE_ACCESS_TOKEN } = getEnv();
+
+  try {
+    const res = await fetch(
+      `${GRAPH_API_BASE}/${igsid}?fields=username&access_token=${META_PAGE_ACCESS_TOKEN}`,
+    );
+    if (!res.ok) {
+      console.warn(
+        `[meta] failed to resolve username for ${igsid}: ${res.status} ${await res.text()}`,
+      );
+      return undefined;
+    }
+    const data = (await res.json()) as { username?: string };
+    return data.username;
+  } catch (err) {
+    console.warn(`[meta] failed to resolve username for ${igsid}`, err);
+    return undefined;
+  }
+}
+
 async function replyToComment(
   commentId: string,
   message: string,

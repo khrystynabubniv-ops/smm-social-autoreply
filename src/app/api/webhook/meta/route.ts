@@ -3,6 +3,7 @@ import { getEnv } from "@/lib/env";
 import { isValidMetaSignature } from "@/lib/metaSignature";
 import { parseMetaPayload, type MetaWebhookPayload } from "@/lib/metaPayload";
 import { proposeReply } from "@/lib/classify";
+import { getInstagramUsername } from "@/lib/meta";
 import { prisma } from "@/lib/prisma";
 import { notifyTelegram } from "@/lib/notify";
 
@@ -61,12 +62,20 @@ async function processPayload(rawBody: string): Promise<void> {
 
   for (const parsed of events) {
     try {
+      // DM webhooks only give us the sender's numeric id, not their
+      // username (comments already include it) — resolve it for display.
+      const senderUsername =
+        parsed.senderUsername ??
+        (parsed.source === "instagram_dm"
+          ? await getInstagramUsername(parsed.senderId)
+          : undefined);
+
       const created = await prisma.incomingEvent.create({
         data: {
           source: parsed.source,
           externalId: parsed.externalId,
           senderId: parsed.senderId,
-          senderUsername: parsed.senderUsername,
+          senderUsername,
           text: parsed.text,
           proposedReply: proposeReply(parsed),
         },
