@@ -51,6 +51,14 @@ async function processPayload(rawBody: string): Promise<void> {
 
   const events = parseMetaPayload(payload);
 
+  if (events.length === 0) {
+    // Nothing matched our parser's expected shape — log the raw payload so we
+    // can see exactly what this Instagram product actually sends and fix the
+    // parser, instead of silently dropping it.
+    console.log("[webhook:meta] payload matched 0 events, raw body:", rawBody);
+    return;
+  }
+
   for (const parsed of events) {
     try {
       const created = await prisma.incomingEvent.create({
