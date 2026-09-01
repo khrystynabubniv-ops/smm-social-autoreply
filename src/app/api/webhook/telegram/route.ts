@@ -5,18 +5,17 @@ import {
   answerCallbackQuery,
   buildSendEditedKeyboard,
   editMessageText,
-  sendMessage,
 } from "@/lib/telegram";
+import { buildCardText } from "@/lib/eventCard";
 import { getEnv } from "@/lib/env";
-import { escapeHtml } from "@/lib/escapeHtml";
 import { isValidTelegramSecret } from "@/lib/telegramSecret";
+import type { IncomingEvent } from "@prisma/client";
 
 type TelegramUpdate = {
   message?: {
     message_id: number;
     chat: { id: number };
     text?: string;
-    reply_to_message?: { message_id: number };
   };
   callback_query?: {
     id: string;
@@ -86,6 +85,22 @@ async function handleCallbackQuery(
   }
 }
 
+/** Edits the one Telegram message that represents this event, in place. */
+async function updateCard(
+  event: IncomingEvent,
+  chatId: string,
+  extra?: string,
+  options?: Parameters<typeof editMessageText>[3],
+) {
+  if (!event.telegramMessageId) return;
+  await editMessageText(
+    chatId,
+    event.telegramMessageId,
+    buildCardText(event, extra),
+    options,
+  );
+}
+
 async function handleSend(
   callbackQuery: NonNullable<TelegramUpdate["callback_query"]>,
   eventId: string,
@@ -131,10 +146,11 @@ async function handleSend(
       hour: "2-digit",
       minute: "2-digit",
     });
-    await editMessageText(
+    await updateCard(
+      updated,
       String(callbackQuery.message.chat.id),
-      updated.telegramMessageId,
-      `${buildOriginalText(updated)}\n\n✅ Надіслано о ${sentAt}`,
+      `✅ Надіслано о ${sentAt}`,
+      { inlineKeyboard: [] },
     );
   }
 }
@@ -151,21 +167,23 @@ async function handleEditRequest(
     return;
   }
 
-  await prisma.incomingEvent.update({
+  const updated = await prisma.incomingEvent.update({
     where: { id: eventId },
     data: { awaitingEditReply: true },
   });
 
   await answerCallbackQuery(callbackQuery.id);
 
-  const { TELEGRAM_CHAT_ID } = getEnv();
-  await sendMessage(
-    TELEGRAM_CHAT_ID,
-    "Напишіть виправлений варіант відповіді:",
-    {
-      forceReply: true,
-    },
-  );
+  if (updated.telegramMessageId && callbackQuery.message) {
+    // Edit the same card in place — buttons removed while we wait for the
+    // operator's next plain text message in this chat to be the correction.
+    await updateCard(
+      updated,
+      String(callbackQuery.message.chat.id),
+      "✏️ Напишіть новий варіант відповіді наступним повідомленням у цей чат.",
+      { inlineKeyboard: [] },
+    );
+  }
 }
 
 async function handleTextMessage(
@@ -186,54 +204,9 @@ async function handleTextMessage(
     data: { proposedReply: draft, awaitingEditReply: false },
   });
 
-  const { TELEGRAM_CHAT_ID } = getEnv();
-  await sendMessage(TELEGRAM_CHAT_ID, buildEditedDraftText(updated, draft), {
+  // Fold the correction back into the same card instead of sending a new
+  // message — one Telegram message per Instagram interaction, always.
+  await updateCard(updated, String(message.chat.id), undefined, {
     inlineKeyboard: buildSendEditedKeyboard(updated.id),
   });
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  sent: "вже позначена як надіслана",
-  edited_sent: "вже позначена як надіслана (з попередньою правкою)",
-};
-
-// Deliberately doesn't repeat the original message text — that's already
-// visible in the card above in the same chat. Re-quoting it here made this
-// look like a duplicate notification instead of a new step in the same flow.
-function buildEditedDraftText(
-  event: {
-    source: string;
-    senderUsername: string | null;
-    senderId: string;
-    status: string;
-  },
-  draft: string,
-): string {
-  const kind = event.source === "instagram_dm" ? "DM" : "коментар";
-  const username = event.senderUsername
-    ? `@${escapeHtml(event.senderUsername)}`
-    : escapeHtml(event.senderId);
-
-  const statusWarning = STATUS_LABEL[event.status]
-    ? `⚠️ Ця подія ${STATUS_LABEL[event.status]} — надсилання зараз повторить відповідь ще раз.\n\n`
-    : "";
-
-  return `${statusWarning}✏️ Новий варіант відповіді (${kind} від ${username}):\n"${escapeHtml(draft)}"`;
-}
-
-// event.text / senderUsername / senderId come straight from the Meta webhook
-// payload (an arbitrary public IG comment or DM) and messages are sent with
-// parse_mode: "HTML" — must be escaped before interpolation to avoid HTML/link
-// injection into the operator's Telegram chat.
-function buildOriginalText(event: {
-  source: string;
-  senderUsername: string | null;
-  senderId: string;
-  text: string;
-}): string {
-  const kind = event.source === "instagram_dm" ? "DM" : "коментар";
-  const username = event.senderUsername
-    ? `@${escapeHtml(event.senderUsername)}`
-    : escapeHtml(event.senderId);
-  return `💬 ${kind} від ${username}\n"${escapeHtml(event.text)}"`;
 }
