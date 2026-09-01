@@ -5,19 +5,12 @@ const SOURCE_LABEL: Record<string, string> = {
   instagram_comment: "коментар",
 };
 
-const STATUS_WARNING: Record<string, string> = {
-  sent: "⚠️ Цю подію вже позначено як надіслану — повторне надсилання відправить відповідь ще раз.\n\n",
-  edited_sent:
-    "⚠️ Цю подію вже позначено як надіслану (з попередньою правкою) — повторне надсилання відправить відповідь ще раз.\n\n",
-};
-
 export type CardEvent = {
   source: string;
   senderUsername: string | null;
   senderId: string;
   text: string;
   proposedReply: string | null;
-  status: string;
 };
 
 /**
@@ -32,10 +25,8 @@ export function buildCardText(event: CardEvent, extra?: string): string {
     ? `@${escapeHtml(event.senderUsername)}`
     : escapeHtml(event.senderId);
 
-  const warning = STATUS_WARNING[event.status] ?? "";
-
   const lines = [
-    `${warning}💬 ${kind} від ${username}`,
+    `💬 ${kind} від ${username}`,
     `"${escapeHtml(event.text)}"`,
     "",
     "Пропонована відповідь:",
