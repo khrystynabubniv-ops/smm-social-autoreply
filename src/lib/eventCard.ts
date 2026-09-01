@@ -81,7 +81,6 @@ export function buildCardText(
           } — потрібна ручна відповідь)`
         : "Категорія: не визначено — потрібна ручна відповідь",
     );
-    lines.push("", "⚠️ Автоматичну відповідь не підібрано — напиши свою.");
   } else {
     const categoryLine =
       event.tier === "A" || event.tier === "B"
