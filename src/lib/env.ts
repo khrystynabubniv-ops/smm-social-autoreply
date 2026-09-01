@@ -13,8 +13,8 @@ const envSchema = z.object({
   TELEGRAM_WEBHOOK_SECRET: z
     .string()
     .min(1, "TELEGRAM_WEBHOOK_SECRET is required"),
-  LITELLM_BASE_URL: z.string().url(),
-  LITELLM_API_KEY: z.string().min(1, "LITELLM_API_KEY is required"),
+  OPENROUTER_API_KEY: z.string().min(1, "OPENROUTER_API_KEY is required"),
+  OPENROUTER_MODEL: z.string().min(1).default("anthropic/claude-sonnet-4.6"),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -11,16 +11,16 @@ MVP-прототип: приймає вхідні Instagram DM та комент
 підтвердження (`✅ Надіслати` / `✏️ Редагувати`), і за підтвердженням
 відправляє відповідь назад у Meta.
 
-AI (через company LiteLLM proxy) **лише класифікує** повідомлення за
-категоріями FAQ SMM — текст відповіді завжди береться дослівно з бази
-шаблонів (`Template`), LLM ніколи не генерує й не переформульовує сам текст.
-Див. `src/lib/classify.ts` і `src/data/templates.ts`.
+AI (через OpenRouter) **лише класифікує** повідомлення за категоріями FAQ
+SMM — текст відповіді завжди береться дослівно з бази шаблонів (`Template`),
+LLM ніколи не генерує й не переформульовує сам текст. Див.
+`src/lib/classify.ts` і `src/data/templates.ts`.
 
 ## Стек
 
 - Next.js (App Router) + TypeScript
 - PostgreSQL + Prisma
-- LiteLLM proxy (`openai` SDK, OpenAI-сумісний API) — лише для класифікації
+- OpenRouter (`openai` SDK, OpenAI-сумісний API) — лише для класифікації
 - Прямі HTTP-виклики до Telegram Bot API (без сторонніх бібліотек)
 - Railway (деплой, окремий сервіс)
 
@@ -48,8 +48,8 @@ Health check: `curl http://localhost:3000/api/health`
 | `TELEGRAM_BOT_TOKEN`      | Токен бота від `@BotFather`.                                                                                                                                                                                                                 |
 | `TELEGRAM_CHAT_ID`        | Chat id, куди слати сповіщення (наприклад, з `@userinfobot`).                                                                                                                                                                                |
 | `TELEGRAM_WEBHOOK_SECRET` | Довільний секрет (`openssl rand -hex 32`), реєструється як `secret_token` у `setWebhook`.                                                                                                                                                    |
-| `LITELLM_BASE_URL`        | `https://litellm.unicore-tools.io` — company proxy, ніколи не звертаємось до Anthropic/OpenAI напряму.                                                                                                                                       |
-| `LITELLM_API_KEY`         | Virtual key, створюється на litellm.unicore-tools.io/ui → Virtual Keys → Create New Key, назва `smm-social-autoreply`.                                                                                                                       |
+| `OPENROUTER_API_KEY`      | Ключ з openrouter.ai/keys. Використовується лише для класифікації.                                                                                                                                                                           |
+| `OPENROUTER_MODEL`        | Слаг моделі з openrouter.ai/models, за замовчуванням `anthropic/claude-sonnet-4.6`.                                                                                                                                                          |
 
 ## Флоу
 
@@ -57,7 +57,7 @@ Health check: `curl http://localhost:3000/api/health`
 2. Підпис перевіряється (`X-Hub-Signature-256` + `META_APP_SECRET`), подія
    парситься, зберігається в `IncomingEvent` (дедуплікація за `externalId`,
    фільтр власних відповідей акаунта через `META_IG_ACCOUNT_ID`).
-3. `classifyMessage()` — LLM (LiteLLM) визначає **тільки категорію** з FAQ
+3. `classifyMessage()` — LLM (OpenRouter) визначає **тільки категорію** з FAQ
    (`categoryId`, `confidence`, чи звинувачення спрямоване на конкретну
    людину). Сам текст відповіді береться дослівно з `Template.textVariants`
    (для 5.x — випадковий з набору взаємозамінних варіантів). Repeat-detection:

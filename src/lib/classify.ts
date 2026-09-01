@@ -55,11 +55,13 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
 function getLlmClient(): OpenAI {
-  const { LITELLM_BASE_URL, LITELLM_API_KEY } = getEnv();
+  const { OPENROUTER_API_KEY } = getEnv();
   return new OpenAI({
-    baseURL: `${LITELLM_BASE_URL}/v1`,
-    apiKey: LITELLM_API_KEY,
+    baseURL: OPENROUTER_BASE_URL,
+    apiKey: OPENROUTER_API_KEY,
   });
 }
 
@@ -86,13 +88,14 @@ function parseLlmResponse(raw: string): LlmClassification | null {
 async function callLlmClassifier(text: string): Promise<LlmClassification> {
   try {
     const client = getLlmClient();
+    const { OPENROUTER_MODEL } = getEnv();
     // Wrap in explicit delimiters so the model treats the message as data to
     // classify, never as instructions to follow — and cap length defensively.
     const userContent = `<message>${text.slice(0, 2000)}</message>`;
 
     const response = await client.chat.completions.create(
       {
-        model: "claude-sonnet-4-6",
+        model: OPENROUTER_MODEL,
         temperature: 0,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
@@ -100,9 +103,11 @@ async function callLlmClassifier(text: string): Promise<LlmClassification> {
         ],
       },
       {
+        // OpenRouter-recommended attribution headers (openrouter.ai/docs).
         headers: {
-          "x-litellm-tags":
-            "service:smm-social-autoreply,feature:classification",
+          "HTTP-Referer":
+            "https://smm-social-autoreply-production.up.railway.app",
+          "X-Title": "smm-social-autoreply",
         },
       },
     );
