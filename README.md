@@ -53,9 +53,9 @@ Health check: `curl http://localhost:3000/api/health`
 2. Підпис перевіряється (`X-Hub-Signature-256` + `META_APP_SECRET`), подія
    парситься, зберігається в `IncomingEvent` (дедуплікація за `externalId`),
    і в Telegram-чат летить картка з пропонованою відповіддю.
-3. `✅ Надіслати` → відповідь іде в Meta (реально для коментарів через
-   `instagram_manage_comments`; для DM поки що лише `console.log`, бо
-   `instagram_manage_messages` ще не підтверджено), статус → `sent`.
+3. `✅ Надіслати` → відповідь реально йде в Meta (коментарі через
+   `instagram_business_manage_comments`, DM через `instagram_business_manage_messages`),
+   статус → `sent`.
 4. `✏️ Редагувати` → бот просить новий текст (`force_reply`), наступне
    повідомлення в чаті береться як чернетка і показується знову з кнопкою
    `✅ Надіслати цей варіант` (`send_edited`), яка зберігає фінальний текст і
@@ -85,5 +85,4 @@ curl -F "url=https://smm-social-autoreply-production.up.railway.app/api/webhook/
 
 - AI-класифікація відповіді (OpenRouter) — заглушка
 - Адмінка для шаблонів
-- Реальна відправка в Instagram DM (тільки лог); коментарі — реальна відправка
 - Multi-user логіка / locking — один Telegram chat, без auth

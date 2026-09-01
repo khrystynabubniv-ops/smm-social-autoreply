@@ -11,11 +11,8 @@ const GRAPH_API_BASE = "https://graph.instagram.com/v21.0";
 /**
  * Sends the final reply back to Meta.
  *
- * - instagram_comment: real call to the Graph API `/{comment-id}/replies` endpoint,
- *   since `instagram_business_manage_comments` is already an approved permission.
- * - instagram_dm: stub only (console.log) until `instagram_business_manage_messages`
- *   is approved for this app — replace the branch body with a real
- *   `/me/messages` call once that happens.
+ * - instagram_comment: `/{comment-id}/replies` via `instagram_business_manage_comments`.
+ * - instagram_dm: `/me/messages` via `instagram_business_manage_messages`.
  */
 export async function sendReplyToMeta(
   event: IncomingEvent,
@@ -27,10 +24,7 @@ export async function sendReplyToMeta(
   }
 
   if (event.source === "instagram_dm") {
-    // TODO: replace with a real POST to /me/messages once instagram_manage_messages is approved.
-    console.log(
-      `[meta:dm-stub] Would send DM reply to ${event.senderId} (event ${event.id}): "${replyText}"`,
-    );
+    await sendDirectMessage(event.senderId, replyText);
     return;
   }
 
@@ -88,6 +82,30 @@ async function replyToComment(
     const body = await res.text();
     throw new Error(
       `Meta Graph API error replying to comment ${commentId}: ${res.status} ${body}`,
+    );
+  }
+}
+
+async function sendDirectMessage(
+  recipientId: string,
+  message: string,
+): Promise<void> {
+  const { META_PAGE_ACCESS_TOKEN } = getEnv();
+
+  const res = await fetch(`${GRAPH_API_BASE}/me/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      recipient: { id: recipientId },
+      message: { text: message },
+      access_token: META_PAGE_ACCESS_TOKEN,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(
+      `Meta Graph API error sending DM to ${recipientId}: ${res.status} ${body}`,
     );
   }
 }
