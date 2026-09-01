@@ -1,11 +1,11 @@
-import { getEnv } from "@/lib/env";
 import { buildCardText } from "@/lib/eventCard";
 import { prisma } from "@/lib/prisma";
 import {
   buildConfirmationKeyboard,
   buildEscalateKeyboard,
   buildTierCKeyboard,
-  sendMessage,
+  getChatIds,
+  sendMessageToChats,
 } from "@/lib/telegram";
 import type { IncomingEvent, Template } from "@prisma/client";
 
@@ -18,26 +18,22 @@ function keyboardForTier(event: IncomingEvent) {
 
 /**
  * Sends the confirmation card for a newly stored + classified IncomingEvent
- * to the configured Telegram chat, and stores the resulting message id —
- * this same message is edited in place for every later step (edit / send)
- * instead of spawning new ones.
+ * to every configured Telegram chat, and stores each chat's message id —
+ * every copy is edited in place for every later step (edit / send) instead
+ * of spawning new ones, so all recipients always see the same state.
  */
 export async function notifyTelegram(
   event: IncomingEvent,
   template: Template | null,
 ): Promise<void> {
-  const { TELEGRAM_CHAT_ID } = getEnv();
-
-  const sent = await sendMessage(
-    TELEGRAM_CHAT_ID,
+  const messageIds = await sendMessageToChats(
+    getChatIds(),
     buildCardText(event, template),
-    {
-      inlineKeyboard: keyboardForTier(event),
-    },
+    { inlineKeyboard: keyboardForTier(event) },
   );
 
   await prisma.incomingEvent.update({
     where: { id: event.id },
-    data: { telegramMessageId: String(sent.message_id) },
+    data: { telegramMessageIds: messageIds },
   });
 }

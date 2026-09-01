@@ -46,7 +46,7 @@ Health check: `curl http://localhost:3000/api/health`
 | `META_PAGE_ACCESS_TOKEN`  | Instagram User Access Token (`IGAA...`) з кроку "2. Generate access tokens" на тому ж екрані. Дозволи `instagram_business_basic` + `instagram_business_manage_comments`. Виклики йдуть через `graph.instagram.com`, не `graph.facebook.com`. |
 | `META_IG_ACCOUNT_ID`      | Числовий ID підключеного Instagram-акаунта (той самий, що поверне `GET /me` з токеном вище). Використовується, щоб ігнорувати власні відповіді акаунта — коментарі не мають `is_echo`, як DM, тож без цього бот сповіщав би сам про себе.    |
 | `TELEGRAM_BOT_TOKEN`      | Токен бота від `@BotFather`.                                                                                                                                                                                                                 |
-| `TELEGRAM_CHAT_ID`        | Chat id, куди слати сповіщення (наприклад, з `@userinfobot`).                                                                                                                                                                                |
+| `TELEGRAM_CHAT_IDS`       | Chat id через кому — усі, кому слати картки й хто може на них тиснути (наприклад, з `@userinfobot`): `545781428,531942630`.                                                                                                                  |
 | `TELEGRAM_WEBHOOK_SECRET` | Довільний секрет (`openssl rand -hex 32`), реєструється як `secret_token` у `setWebhook`.                                                                                                                                                    |
 | `OPENROUTER_API_KEY`      | Ключ з openrouter.ai/keys. Використовується лише для класифікації.                                                                                                                                                                           |
 | `OPENROUTER_MODEL`        | Слаг моделі з openrouter.ai/models, за замовчуванням `anthropic/claude-sonnet-4.6`.                                                                                                                                                          |
@@ -113,4 +113,5 @@ curl -F "url=https://smm-social-autoreply-production.up.railway.app/api/webhook/
 - Автоматична відправка без підтвердження людини (навіть для Tier A з
   високим confidence) — Фаза 2, зараз усе йде через Telegram-кнопки
 - Адмінка для шаблонів (редагування лише через код + деплой)
-- Multi-user логіка / locking — один Telegram chat, без auth
+- Locking між кількома отримувачами — кожен у `TELEGRAM_CHAT_IDS` бачить і
+  може діяти на кожну картку; хто перший натиснув кнопку, той і виконав дію

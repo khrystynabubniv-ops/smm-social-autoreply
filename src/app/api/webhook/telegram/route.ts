@@ -4,10 +4,11 @@ import { sendReplyToMeta } from "@/lib/meta";
 import {
   answerCallbackQuery,
   buildSendEditedKeyboard,
-  editMessageText,
+  editMessageInChats,
+  getChatIds,
+  type ChatMessageMap,
 } from "@/lib/telegram";
 import { buildCardText, getEventTemplate } from "@/lib/eventCard";
-import { getEnv } from "@/lib/env";
 import { isValidTelegramSecret } from "@/lib/telegramSecret";
 import type { IncomingEvent } from "@prisma/client";
 
@@ -36,12 +37,11 @@ export async function POST(request: NextRequest) {
   }
 
   const update = (await request.json()) as TelegramUpdate;
-  const { TELEGRAM_CHAT_ID } = getEnv();
 
-  // Defense in depth: only ever act on updates from the configured admin chat.
+  // Defense in depth: only ever act on updates from a configured chat.
   const chatId =
     update.callback_query?.message?.chat.id ?? update.message?.chat.id;
-  if (String(chatId) !== TELEGRAM_CHAT_ID) {
+  if (!chatId || !getChatIds().includes(String(chatId))) {
     return new NextResponse("OK", { status: 200 });
   }
 
@@ -88,18 +88,27 @@ async function handleCallbackQuery(
   }
 }
 
-/** Edits the one Telegram message that represents this event, in place. */
+function messageIdsOf(event: IncomingEvent): ChatMessageMap {
+  const raw = event.telegramMessageIds;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return raw as ChatMessageMap;
+}
+
+/**
+ * Edits every recipient's copy of the one Telegram message that represents
+ * this event, in place — whichever chat an action was triggered from, every
+ * other configured chat sees the same updated state.
+ */
 async function updateCard(
   event: IncomingEvent,
-  chatId: string,
   extra?: string,
-  options?: Parameters<typeof editMessageText>[3],
+  options?: Parameters<typeof editMessageInChats>[2],
 ) {
-  if (!event.telegramMessageId) return;
+  const messageIds = messageIdsOf(event);
+  if (Object.keys(messageIds).length === 0) return;
   const template = await getEventTemplate(event);
-  await editMessageText(
-    chatId,
-    event.telegramMessageId,
+  await editMessageInChats(
+    messageIds,
     buildCardText(event, template, extra),
     options,
   );
@@ -145,18 +154,11 @@ async function handleSend(
 
   await answerCallbackQuery(callbackQuery.id, "Надіслано ✅");
 
-  if (updated.telegramMessageId && callbackQuery.message) {
-    const sentAt = new Date().toLocaleTimeString("uk-UA", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    await updateCard(
-      updated,
-      String(callbackQuery.message.chat.id),
-      `✅ Надіслано о ${sentAt}`,
-      { inlineKeyboard: [] },
-    );
-  }
+  const sentAt = new Date().toLocaleTimeString("uk-UA", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  await updateCard(updated, `✅ Надіслано о ${sentAt}`, { inlineKeyboard: [] });
 }
 
 async function handleEditRequest(
@@ -178,16 +180,13 @@ async function handleEditRequest(
 
   await answerCallbackQuery(callbackQuery.id);
 
-  if (updated.telegramMessageId && callbackQuery.message) {
-    // Edit the same card in place — buttons removed while we wait for the
-    // operator's next plain text message in this chat to be the correction.
-    await updateCard(
-      updated,
-      String(callbackQuery.message.chat.id),
-      "✏️ Напишіть новий варіант відповіді наступним повідомленням у цей чат.",
-      { inlineKeyboard: [] },
-    );
-  }
+  // Edit every copy in place — buttons removed while we wait for the next
+  // plain text message (from any configured chat) to be the correction.
+  await updateCard(
+    updated,
+    "✏️ Напишіть новий варіант відповіді наступним повідомленням у цей чат.",
+    { inlineKeyboard: [] },
+  );
 }
 
 /** Tier C — dismiss without sending anything to Meta; reference only. */
@@ -210,14 +209,9 @@ async function handleMarkProcessed(
 
   await answerCallbackQuery(callbackQuery.id, "Опрацьовано ✅");
 
-  if (updated.telegramMessageId && callbackQuery.message) {
-    await updateCard(
-      updated,
-      String(callbackQuery.message.chat.id),
-      "✅ Позначено як опрацьоване",
-      { inlineKeyboard: [] },
-    );
-  }
+  await updateCard(updated, "✅ Позначено як опрацьоване", {
+    inlineKeyboard: [],
+  });
 }
 
 async function handleTextMessage(
@@ -238,9 +232,9 @@ async function handleTextMessage(
     data: { proposedReply: draft, awaitingEditReply: false },
   });
 
-  // Fold the correction back into the same card instead of sending a new
+  // Fold the correction back into every copy instead of sending a new
   // message — one Telegram message per Instagram interaction, always.
-  await updateCard(updated, String(message.chat.id), undefined, {
+  await updateCard(updated, undefined, {
     inlineKeyboard: buildSendEditedKeyboard(updated.id),
   });
 }

@@ -18,6 +18,14 @@ function apiUrl(method: string): string {
   return `${TELEGRAM_API_BASE}/bot${TELEGRAM_BOT_TOKEN}/${method}`;
 }
 
+/** Every chat that gets a copy of each card and can act on it. */
+export function getChatIds(): string[] {
+  const { TELEGRAM_CHAT_IDS } = getEnv();
+  return TELEGRAM_CHAT_IDS.split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
 async function callTelegram<T>(
   method: string,
   body: Record<string, unknown>,
@@ -76,6 +84,47 @@ export async function editMessageText(
       ? { inline_keyboard: options.inlineKeyboard }
       : undefined,
   });
+}
+
+export type ChatMessageMap = Record<string, number>;
+
+/** Sends the same card to every configured chat; returns {chatId: message_id}. */
+export async function sendMessageToChats(
+  chatIds: string[],
+  text: string,
+  options?: { inlineKeyboard?: InlineKeyboardButton[][] },
+): Promise<ChatMessageMap> {
+  const entries = await Promise.all(
+    chatIds.map(async (chatId) => {
+      const sent = await sendMessage(chatId, text, options);
+      return [chatId, sent.message_id] as const;
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
+/**
+ * Edits every chat's copy of a card in place, so every recipient sees the
+ * same state (buttons removed, "✅ Надіслано", etc). Best-effort per chat —
+ * one recipient blocking the bot shouldn't stop the others from updating.
+ */
+export async function editMessageInChats(
+  messageIds: ChatMessageMap,
+  text: string,
+  options?: { inlineKeyboard?: InlineKeyboardButton[][] },
+): Promise<void> {
+  await Promise.all(
+    Object.entries(messageIds).map(async ([chatId, messageId]) => {
+      try {
+        await editMessageText(chatId, messageId, text, options);
+      } catch (err) {
+        console.error(
+          `[telegram] failed to edit message in chat ${chatId}`,
+          err,
+        );
+      }
+    }),
+  );
 }
 
 /** Acknowledges a callback query so Telegram stops showing the loading spinner on the button. */

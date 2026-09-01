@@ -17,7 +17,7 @@ model IncomingEvent {
   status            String   @default("pending") // pending | sent | edited_sent
   proposedReply     String?
   finalReply        String?
-  telegramMessageId String? // для edit кнопок в Telegram
+  telegramMessageIds Json? // { [chatId]: messageId } — одна картка на подію, але в кожному сповіщеному чаті
   awaitingEditReply Boolean  @default(false) // true, поки чекаємо текст правки від адміна в Telegram
 
   // AI-класифікація (FAQ SMM)

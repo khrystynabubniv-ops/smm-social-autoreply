@@ -9,7 +9,9 @@ const envSchema = z.object({
     .min(1, "META_PAGE_ACCESS_TOKEN is required"),
   META_IG_ACCOUNT_ID: z.string().min(1, "META_IG_ACCOUNT_ID is required"),
   TELEGRAM_BOT_TOKEN: z.string().min(1, "TELEGRAM_BOT_TOKEN is required"),
-  TELEGRAM_CHAT_ID: z.string().min(1, "TELEGRAM_CHAT_ID is required"),
+  // Comma-separated chat ids, e.g. "545781428,531942630" — every one of them
+  // gets its own copy of every card and can act on it (send/edit/etc).
+  TELEGRAM_CHAT_IDS: z.string().min(1, "TELEGRAM_CHAT_IDS is required"),
   TELEGRAM_WEBHOOK_SECRET: z
     .string()
     .min(1, "TELEGRAM_WEBHOOK_SECRET is required"),
