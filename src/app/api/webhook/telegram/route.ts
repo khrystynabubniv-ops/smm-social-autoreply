@@ -187,11 +187,38 @@ async function handleTextMessage(
   });
 
   const { TELEGRAM_CHAT_ID } = getEnv();
-  await sendMessage(
-    TELEGRAM_CHAT_ID,
-    `${buildOriginalText(updated)}\n\nВаш варіант:\n"${escapeHtml(draft)}"`,
-    { inlineKeyboard: buildSendEditedKeyboard(updated.id) },
-  );
+  await sendMessage(TELEGRAM_CHAT_ID, buildEditedDraftText(updated, draft), {
+    inlineKeyboard: buildSendEditedKeyboard(updated.id),
+  });
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  sent: "вже позначена як надіслана",
+  edited_sent: "вже позначена як надіслана (з попередньою правкою)",
+};
+
+// Deliberately doesn't repeat the original message text — that's already
+// visible in the card above in the same chat. Re-quoting it here made this
+// look like a duplicate notification instead of a new step in the same flow.
+function buildEditedDraftText(
+  event: {
+    source: string;
+    senderUsername: string | null;
+    senderId: string;
+    status: string;
+  },
+  draft: string,
+): string {
+  const kind = event.source === "instagram_dm" ? "DM" : "коментар";
+  const username = event.senderUsername
+    ? `@${escapeHtml(event.senderUsername)}`
+    : escapeHtml(event.senderId);
+
+  const statusWarning = STATUS_LABEL[event.status]
+    ? `⚠️ Ця подія ${STATUS_LABEL[event.status]} — надсилання зараз повторить відповідь ще раз.\n\n`
+    : "";
+
+  return `${statusWarning}✏️ Новий варіант відповіді (${kind} від ${username}):\n"${escapeHtml(draft)}"`;
 }
 
 // event.text / senderUsername / senderId come straight from the Meta webhook
