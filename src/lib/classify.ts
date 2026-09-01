@@ -148,9 +148,55 @@ async function hasRecentSameCategoryReply(
   return prior !== null;
 }
 
+const GREETING = "Привіт! ";
+
+// Any run of emoji / whitespace / ZWJ / variation-selector chars, nothing
+// else — e.g. "❤️", "🔥😂", "  👍 ". A single emoji-only comment (a
+// reaction, not a real message) shouldn't get a "Привіт!" opener.
+const EMOJI_ONLY_RE = /^[\p{Extended_Pictographic}\s‍️]+$/u;
+
+function isEmojiOnlyText(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.length > 0 && EMOJI_ONLY_RE.test(trimmed);
+}
+
+/** True if this sender has no earlier IncomingEvent — i.e. this is the
+ * opening message of the conversation, not a reply deeper in an existing
+ * thread (where a "Привіт!" opener would feel out of place). */
+async function isFirstMessageInConversation(
+  senderConversationKey: string,
+  excludeEventId: string,
+): Promise<boolean> {
+  const prior = await prisma.incomingEvent.findFirst({
+    where: { senderConversationKey, id: { not: excludeEventId } },
+  });
+  return prior === null;
+}
+
+async function shouldGreet(event: {
+  id: string;
+  text: string;
+  source: string;
+  senderConversationKey: string | null;
+}): Promise<boolean> {
+  if (event.source === "instagram_dm") {
+    // Only greet on the first message of a DM conversation — mid-thread
+    // replies shouldn't re-open with "Привіт!".
+    return event.senderConversationKey
+      ? isFirstMessageInConversation(event.senderConversationKey, event.id)
+      : true;
+  }
+  if (event.source === "instagram_comment") {
+    // A bare emoji reaction doesn't warrant a greeting; an actual comment does.
+    return !isEmojiOnlyText(event.text);
+  }
+  return false;
+}
+
 export async function classifyMessage(event: {
   id: string;
   text: string;
+  source: string;
   senderConversationKey: string | null;
 }): Promise<ClassificationResult> {
   const llm = await callLlmClassifier(event.text);
@@ -194,6 +240,10 @@ export async function classifyMessage(event: {
     proposedReply = llm.categoryId?.startsWith("5.")
       ? pickRandom(template.textVariants)
       : template.textVariants[0];
+
+    if (await shouldGreet(event)) {
+      proposedReply = GREETING + proposedReply;
+    }
   }
 
   return {
